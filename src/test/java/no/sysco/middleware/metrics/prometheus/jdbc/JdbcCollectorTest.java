@@ -5,7 +5,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.net.URL;
 import java.util.Optional;
 
@@ -23,7 +22,7 @@ public class JdbcCollectorTest {
     public void testReloadConfig() {
         final URL resource = getClass().getClassLoader().getResource("config.yml");
         Optional.ofNullable(resource).map(URL::getFile).map(File::new).ifPresent(config -> {
-            JdbcCollector collector = new JdbcCollector(config, "");
+            JdbcCollector collector = new JdbcCollector(config);
             if (config.setLastModified(System.currentTimeMillis())) {
                 collector.reloadConfig();
             }
@@ -35,7 +34,7 @@ public class JdbcCollectorTest {
     public void testMultiFileConfig() {
         final URL resource = getClass().getClassLoader().getResource("multipleconfigs");
         Optional.ofNullable(resource).map(URL::getFile).map(File::new).ifPresent(config -> {
-            JdbcCollector collector = new JdbcCollector(config, "fff");
+            JdbcCollector collector = new JdbcCollector(config);
             if (config.setLastModified(System.currentTimeMillis())) {
                 collector.reloadConfig();
             }

@@ -29,9 +29,7 @@ public class WebServer {
        socket = new InetSocketAddress(port);
      }
 
-     String prefix = Optional.ofNullable(System.getenv("METRIC_PREFIX")).orElse("jdbc");
-
-     new JdbcCollector(new File(args[1]), prefix).register();
+     new JdbcCollector(new File(args[1])).register();
 
      Server server = new Server(socket);
      ServletContextHandler context = new ServletContextHandler();

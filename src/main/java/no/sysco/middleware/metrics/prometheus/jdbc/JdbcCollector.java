@@ -21,30 +21,24 @@ import io.prometheus.client.Counter;
  * Prometheus JDBC Collector
  */
 public class JdbcCollector extends Collector implements Collector.Describable {
-    private final Counter configReloadSuccess;
+  private static final Counter configReloadSuccess =
+      Counter.build()
+          .name("jdbc_config_reload_success_total")
+          .help("Number of times configuration have successfully been reloaded.").register();
 
-    private final Counter configReloadFailure;
+  private static final Counter configReloadFailure =
+      Counter.build()
+          .name("jdbc_config_reload_failure_total")
+          .help("Number of times configuration have failed to be reloaded.").register();
 
     private static final Logger LOGGER = Logger.getLogger(JdbcCollector.class.getName());
 
     private Set<JdbcConfig> config;
     private File configFile;
     private long lastUpdate;
-    String metricPrefix;
 
-    JdbcCollector(File in, String prefix) {
+    JdbcCollector(File in) {
         configFile = in;
-        metricPrefix = prefix;
-
-        configReloadSuccess = Counter.build()
-                .name(metricPrefix + "_config_reload_success_total")
-                .help("Number of times configuration have successfully been reloaded.")
-                .register();
-
-        configReloadFailure = Counter.build()
-                .name(metricPrefix + "_config_reload_failure_total")
-                .help("Number of times configuration have failed to be reloaded.")
-                .register();
         loadConfigFromFile(in);
     }
 
@@ -79,13 +73,13 @@ public class JdbcCollector extends Collector implements Collector.Describable {
         List<MetricFamilySamples> sampleFamilies = new ArrayList<>();
         sampleFamilies.add(
             new MetricFamilySamples(
-                metricPrefix + "_scrape_duration_seconds",
+                "jdbc_scrape_duration_seconds",
                 Type.GAUGE,
                 "Time this JDBC scrape took, in seconds.",
                 new ArrayList<>()));
         sampleFamilies.add(
             new MetricFamilySamples(
-                metricPrefix + "_scrape_error",
+                "jdbc_scrape_error",
                 Type.GAUGE,
                 "Non-zero if this scrape failed.",
                 new ArrayList<>()));
@@ -103,7 +97,7 @@ public class JdbcCollector extends Collector implements Collector.Describable {
         }
 
         return config.stream()
-            .flatMap((JdbcConfig jdbcConfig) -> jdbcConfig.runJobs(metricPrefix).stream())
+            .flatMap((JdbcConfig jdbcConfig) -> jdbcConfig.runJobs().stream())
             .collect(Collectors.toList());
     }
 
