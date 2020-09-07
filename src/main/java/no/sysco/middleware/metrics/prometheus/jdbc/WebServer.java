@@ -7,6 +7,7 @@ import org.eclipse.jetty.servlet.ServletHolder;
 
 import java.io.File;
 import java.net.InetSocketAddress;
+import java.util.Optional;
 
 public class WebServer {
 
@@ -28,7 +29,9 @@ public class WebServer {
        socket = new InetSocketAddress(port);
      }
 
-     new JdbcCollector(new File(args[1])).register();
+     String prefix = Optional.ofNullable(System.getenv("METRIC_PREFIX")).orElse("jdbc");
+
+     new JdbcCollector(new File(args[1]), prefix).register();
 
      Server server = new Server(socket);
      ServletContextHandler context = new ServletContextHandler();
