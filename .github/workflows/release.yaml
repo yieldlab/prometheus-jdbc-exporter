@@ -27,11 +27,21 @@ jobs:
         ./mvnw -DnewVersion="${{ steps.version.outputs.tags }}" -DgenerateBackupPoms=false --batch-mode versions:set
         ./mvnw -B package
     - name: Build Docker image and push it to GitHub Packages
-      uses: docker/build-push-action@v1
+      uses: docker/build-push-action@v2
       with:
         username: ${{ github.actor }}
         password: ${{ github.token }}
-        registry: docker.pkg.github.com
-        repository: ${{ github.repository }}/prometheus-jdbc-exporter
-        tags: latest,${{ steps.version.outputs.tags }}
-        tag_with_ref: true
+        push: true
+        tags: |
+          docker.pkg.github.com/${{ github.repository }}/prometheus-jdbc-exporter/latest
+          docker.pkg.github.com/${{ github.repository }}/prometheus-jdbc-exporter/${{ steps.version.outputs.tags }}
+    - name: Create Release
+      uses: actions/create-release@v1
+      env: 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.tags }}
+        release_name: Release ${{ steps.version.outputs.tags }}
+        draft: false
+        prerelease: false
+        body: "test relelelealse"
