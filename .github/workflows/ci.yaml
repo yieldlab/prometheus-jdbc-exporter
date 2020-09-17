@@ -25,6 +25,11 @@ jobs:
       run: |
         ./mvnw -DnewVersion="${{ steps.version.outputs.tags }}" -DgenerateBackupPoms=false --batch-mode versions:set
         ./mvnw -B package
+    - name: Save artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: build
+        path: .
     outputs:
       version: ${{ steps.version.outputs.tags }}
   Release:
@@ -33,6 +38,10 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     steps:
+    - name: Load artifact
+      uses: actions/download-artifact@v2
+      with: 
+        name: build
     - name: Build Docker image and push it to GitHub Packages
       uses: docker/build-push-action@v1
       with:
