@@ -37,6 +37,7 @@ jobs:
     - name: Build Docker image and push it to GitHub Packages
       uses: docker/build-push-action@v2
       with:
+        push: true
         tags: |
           ${{ github.repository }}/latest
           ${{ github.repository }}/${{ steps.version.outputs.tags }}
