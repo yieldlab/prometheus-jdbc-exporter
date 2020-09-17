@@ -25,8 +25,10 @@ jobs:
       run: |
         ./mvnw -DnewVersion="${{ steps.version.outputs.tags }}" -DgenerateBackupPoms=false --batch-mode versions:set
         ./mvnw -B package
+    outputs:
+      version: ${{ steps.version.outputs.tags }}
   Release:
-    if: ${{ github.branch == 'master' }}
+    if: ${{ endsWith(github.ref, 'master') }}
     needs: CI
     name: Release
     runs-on: ubuntu-latest
@@ -38,14 +40,14 @@ jobs:
         password: ${{ github.token }}
         registry: docker.pkg.github.com
         repository: ${{ github.repository }}/prometheus-jdbc-exporter
-        tags: ${{ steps.version.outputs.tags }},latest
+        tags: ${{ needs.CI.outputs.version }},latest
     - name: Create Release
       uses: actions/create-release@v1
       env: 
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.version.outputs.tags }}
-        release_name: Release ${{ steps.version.outputs.tags }}
+        tag_name: ${{ needs.CI.outputs.version }}
+        release_name: Release ${{ needs.CI.outputs.version }}
         draft: false
         prerelease: false
         body: ""
