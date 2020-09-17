@@ -1,0 +1,11 @@
+{
+  "dataSource": "commits",
+  "prefix": "",
+  "onlyMilestones": false,
+  "groupBy": false,
+  "template": {
+    "issue": "- [{{text}}]({{url}}) {{name}}",
+    "commit": ({message, url, author, name}) => `- [${message}](${url}) - ${author ? `@${author}` : name}`  
+  }
+
+}
