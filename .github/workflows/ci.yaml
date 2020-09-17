@@ -29,7 +29,10 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: build
-        path: .
+        path: |
+          Dockerfile
+          config.yml
+          target/
     outputs:
       version: ${{ steps.version.outputs.tags }}
   Release:
