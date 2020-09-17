@@ -39,8 +39,8 @@ jobs:
       with:
         push: true
         tags: |
-          ${{ github.repository }}/latest
-          ${{ github.repository }}/${{ steps.version.outputs.tags }}
+          docker.pkg.github.com/${{ github.repository }}/latest
+          docker.pkg.github.com/${{ github.repository }}/${{ steps.version.outputs.tags }}
     - name: Create Release
       uses: actions/create-release@v1
       env: 
