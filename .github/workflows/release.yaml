@@ -16,7 +16,7 @@ jobs:
       id: version
       run: |
         CALVER="$(date -u +%Y.%-m.%-d).${GITHUB_RUN_NUMBER}"
-        TAGS="latest,${CALVER}"
+        TAGS="${CALVER}"
         echo ::set-output name=tags::${TAGS}
     - name: Set up JDK 1.8
       uses: actions/setup-java@v1
@@ -33,5 +33,5 @@ jobs:
         password: ${{ github.token }}
         registry: docker.pkg.github.com
         repository: ${{ github.repository }}/prometheus-jdbc-exporter
-        tags: ${{ steps.version.outputs.tags }}
+        tags: latest,${{ steps.version.outputs.tags }}
         tag_with_ref: true
