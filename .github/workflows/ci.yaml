@@ -36,7 +36,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.tags }}
   Release:
-    if: ${{ endsWith(github.ref, 'master') }}
+    if: ${{ endsWith(github.ref, 'main') }}
     needs: CI
     name: Release
     runs-on: ubuntu-latest

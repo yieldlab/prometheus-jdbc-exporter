@@ -3,7 +3,7 @@
 
     <groupId>no.sysco.middleware.metrics</groupId>
     <artifactId>prometheus-jdbc-exporter</artifactId>
-    <version>master-SNAPSHOT</version>
+    <version>main-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>prometheus-jdbc-exporter</name>
