@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assembly xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2
+                              http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+
+    <fileSets>
+        <fileSet>
+            <directory>${project.build.directory}/lib</directory>
+            <outputDirectory>app/lib</outputDirectory>
+        </fileSet>
+    </fileSets>
+
+    <files>
+        <file>
+            <source>${project.basedir}/src/main/docker/docker-entrypoint.sh</source>
+            <outputDirectory />
+            <fileMode>0555</fileMode>
+        </file>
+        <file>
+            <source>${project.build.directory}/${project.build.finalName}.jar</source>
+            <destName>app.jar</destName>
+            <outputDirectory>app</outputDirectory>
+            <fileMode>0444</fileMode>
+        </file>
+        <file>
+            <source>${project.build.directory}/classpath</source>
+            <outputDirectory>app</outputDirectory>
+            <fileMode>0444</fileMode>
+        </file>
+    </files>
+</assembly>

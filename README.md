@@ -4,6 +4,17 @@ Exporter inspired in [sql_exporter](https://github.com/justwatchcom/sql_exporter
 
 It uses JDBC libraries to execute a SQL query that returns a `Float` result and a set of labels.
 
+<!-- TOC -->
+- [Getting Started](#getting-started)
+- [Startup](#startup)
+- [Configuration](#configuration)
+- [Override metric prefix](#override-metric-prefix)
+- [JDBC drivers](#jdbc-drivers)
+  - [`download-list` file format](#download-list-file-format)
+- [Examples](#examples)
+- [Licence](#licence)
+<!-- /TOC -->
+
 ## Getting Started
 
 A YAML configuration file or directory with multiple YAML configuration files is required. 
@@ -151,15 +162,35 @@ Where `query1` is the key that will be used from `query` definition.
 
 ## Override metric prefix
 
-The default `jdbc` prefix to all metrics can be overriden via the env variable METRIC_PREFIX and will prefix
-all metrics with `<METRIC_PREFIX>_`.
+The default `jdbc` prefix to all metrics can be overridden via the env variable
+METRIC_PREFIX and will prefix all metrics with `<METRIC_PREFIX>_`.
+
+## JDBC drivers
+
+By default, the Docker image doesn't ship with any JDBC drivers. The image
+offers a way to download drivers via HTTP(S), though. Create a volume and mount
+it into the container at `/app/downloads`. Mount the file `/app/download-list`
+into the container and run the container with the `download` argument. All the
+listed files will be downloaded into `/app/downloads`. Subsequent starts of the
+container will then find and use those downloaded files.
+### `download-list` file format
+
+A simple text file. Each line consists of two or three space-separated values.
+
+1. URL to fetch, e.g. `https://jdbc.example.com/driver.jar`
+2. The expected SHA256 checksum of the downloaded file, e.g.
+   `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+3. File name to use inside the container. If omitted, this will be the last path
+   segment of the URL to fetch (in the above example, this would be
+   `driver.jar`).
+
+An example file is located at
+[`examples/docker-compose/download-list`](examples/docker-compose/download-list).
 
 ## Examples
 
-Go to the `examples` directory.
+Go to the [`examples`](examples) directory.
 
 ## Licence
 
 MIT Licenced.
-
-
