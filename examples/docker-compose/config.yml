@@ -1,0 +1,30 @@
+jobs:
+- name: mysql
+  connections:
+  - url: jdbc:mysql://mysql/mysql
+    username: root
+    password: example
+  queries:
+  - name: db_users
+    help: Database Users
+    values:
+    - count
+    query: |
+      SELECT count(User) count
+        FROM mysql.user
+- name: postgresql
+  connections:
+  - url: jdbc:postgresql://postgresql/postgres
+    username: postgres
+    password: example
+  queries:
+  - name: db_users
+    help: Database Users
+    values:
+    - count
+    labels:
+    - usename
+    query:  |
+      SELECT   COUNT(1) count, usename
+          FROM pg_catalog.pg_user
+      GROUP BY usename
