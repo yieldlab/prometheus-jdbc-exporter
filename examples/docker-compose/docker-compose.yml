@@ -1,0 +1,68 @@
+version: '3.9'
+services:
+  # This is the two databases that are being scraped for the example
+  mysql:
+    image: docker.io/library/mysql:8.0.27
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: test
+  postgresql:
+    image: docker.io/library/postgres:14.0-alpine
+    environment:
+      POSTGRES_PASSWORD: example
+
+  # This runs a custom Docker image of prometheus-jdbc-exporter with embedded
+  # JDBC drivers and metrics configuration.
+  prometheus-jdbc-exporter-prepackaged:
+    build: .
+    environment:
+      METRIC_PREFIX: prepackaged_jdbc
+
+  # This shows how to download drivers at container startup time, and how to
+  # inject the configuration via a volume mount.
+  prometheus-jdbc-exporter-download:
+    image: ghcr.io/yieldlab/prometheus-jdbc-exporter:main-SNAPSHOT
+    command:
+    - download
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+    - type: bind
+      source: ./download-list
+      target: /app/download-list
+      read_only: true
+    - type: volume
+      source: downloads
+      target: /app/downloads
+  prometheus-jdbc-exporter:
+    depends_on:
+      prometheus-jdbc-exporter-download:
+        condition: service_completed_successfully
+    image: ghcr.io/yieldlab/prometheus-jdbc-exporter:main-SNAPSHOT
+    command:
+    - 0.0.0.0:5555
+    - /app/config.yml
+    volumes:
+    - type: bind
+      source: ./config.yml
+      target: /app/config.yml
+    - type: volume
+      source: downloads
+      target: /app/downloads
+      read_only: true
+
+  # Finally, this is the Prometheus server that scrapes the exporters.
+  prometheus:
+    image: docker.io/prom/prometheus:v2.31.1
+    ports:
+    - 9090:9090
+    volumes:
+    - type: bind
+      source: ./prometheus.yml
+      target: /etc/prometheus/prometheus.yml
+
+volumes:
+  # This is the volume that's being shared between the download container and
+  # the actual exporter, when fetching JDBC drivers at startup time.
+  downloads:
