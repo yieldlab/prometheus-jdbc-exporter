@@ -1,44 +1,37 @@
 package no.sysco.middleware.metrics.prometheus.jdbc;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 import io.prometheus.client.CollectorRegistry;
-import org.junit.Before;
-import org.junit.Test;
 
-import java.io.File;
-import java.net.URL;
-import java.util.Optional;
+class JdbcCollectorTest {
 
-/**
- *
- */
-public class JdbcCollectorTest {
-
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         CollectorRegistry.defaultRegistry.clear();
     }
 
     @Test
-    public void testReloadConfig() {
-        final URL resource = getClass().getClassLoader().getResource("config.yml");
-        Optional.ofNullable(resource).map(URL::getFile).map(File::new).ifPresent(config -> {
-            JdbcCollector collector = new JdbcCollector(config, "jdbc");
-            if (config.setLastModified(System.currentTimeMillis())) {
-                collector.reloadConfig();
-            }
-        });
-
+    void testReloadConfig() throws URISyntaxException, IOException {
+        final var config = Paths.get(getClass().getClassLoader().getResource("config.yml").toURI());
+        final var collector = new JdbcCollector("jdbc", config);
+        Files.setLastModifiedTime(config, FileTime.from(Instant.now()));
+        collector.reloadConfigIfOutdated();
     }
 
     @Test
-    public void testMultiFileConfig() {
-        final URL resource = getClass().getClassLoader().getResource("multipleconfigs");
-        Optional.ofNullable(resource).map(URL::getFile).map(File::new).ifPresent(config -> {
-            JdbcCollector collector = new JdbcCollector(config, "jdbc");
-            if (config.setLastModified(System.currentTimeMillis())) {
-                collector.reloadConfig();
-            }
-        });
-
+    void testMultiFileConfig() throws URISyntaxException, IOException {
+        final var config = Paths.get(getClass().getClassLoader().getResource("multipleconfigs").toURI());
+        final var collector = new JdbcCollector("jdbc", config);
+        Files.setLastModifiedTime(config, FileTime.from(Instant.now()));
+        collector.reloadConfigIfOutdated();
     }
 }

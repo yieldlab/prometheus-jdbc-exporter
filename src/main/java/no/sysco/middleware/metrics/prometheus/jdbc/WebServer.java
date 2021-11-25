@@ -1,13 +1,14 @@
 package no.sysco.middleware.metrics.prometheus.jdbc;
 
-import io.prometheus.client.exporter.MetricsServlet;
+import java.net.InetSocketAddress;
+import java.nio.file.Paths;
+import java.util.Optional;
+
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 
-import java.io.File;
-import java.net.InetSocketAddress;
-import java.util.Optional;
+import io.prometheus.client.exporter.MetricsServlet;
 
 public class WebServer {
 
@@ -31,7 +32,7 @@ public class WebServer {
 
      String prefix = Optional.ofNullable(System.getenv("METRIC_PREFIX")).orElse("jdbc");
 
-     new JdbcCollector(new File(args[1]), prefix).register();
+     new JdbcCollector(prefix, Paths.get(args[1])).register();
 
      Server server = new Server(socket);
      ServletContextHandler context = new ServletContextHandler();

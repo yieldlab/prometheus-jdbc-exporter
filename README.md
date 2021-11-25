@@ -18,7 +18,7 @@ It uses JDBC libraries to execute a SQL query that returns a `Float` result and 
 
 ## Getting Started
 
-A YAML configuration file or directory with multiple YAML configuration files is required. 
+A YAML configuration file or directory with multiple YAML configuration files is required.
 
 Here is a sample:
 
@@ -48,14 +48,14 @@ This query will create a metric `sql_db_users`, where *sql_* is the exporter pre
 
 ## Startup
 
-Startup syntax is 
+Startup syntax is
 ```
-java -Djava.security.egd=file:///dev/urandom \ 
-    -cp "." \ 
-    no.sysco.middleware.metrics.prometheus.jdbc.WebServer \ 
-    <[ip:]port> \ 
+java -Djava.security.egd=file:///dev/urandom \
+    -cp "." \
+    no.sysco.middleware.metrics.prometheus.jdbc.WebServer \
+    <[ip:]port> \
     <configFileOrDirectory>
-```                     
+```
 
 configFileOrDirectory can point to a directory with at least one valid yaml file or directly a valid one yaml file.
 
@@ -106,19 +106,19 @@ connections:
 
 **1.2. query**
 
-Represents query definition to collect metrics from database.
+Represents a query definition to collect metrics from a database.
 
 Values:
 
-*name*: Query name, that will be part of the metric name: `jdbc_<query_name>`. Required.
+*name*: The metric's name. Will be part of the metric, i.e. `<prefix>_<name>`. Required.
 
-*help*: Query description, that will be used as metric description also. Optional.
+*help*: The metric's help text. Optional.
 
 *static_labels*: Set of label names, and their static values. Optional.
 
-*labels*: List of labels, that has to match a column value, that must be `string`. Optional.
+*labels*: List of labels, that has to match a column value, that must be strings. Optional.
 
-*values*: List of values, that has to match a column value, that must be `float`. At least one.
+*values*: List of values, that has to match a column value, that must be numbers. At least one.
 
 *query*: SQL query to select rows that will represent a metric sample.
 

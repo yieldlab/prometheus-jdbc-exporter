@@ -1,77 +1,74 @@
 package no.sysco.middleware.metrics.prometheus.jdbc;
 
-import java.io.File;
-import java.io.FileReader;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toList;
+
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import org.yaml.snakeyaml.Yaml;
 
 import io.prometheus.client.Collector;
 import io.prometheus.client.Counter;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.Config;
 
 /**
  * Prometheus JDBC Collector
  */
 public class JdbcCollector extends Collector implements Collector.Describable {
-    private final Counter configReloadSuccess;
-
-    private final Counter configReloadFailure;
 
     private static final Logger LOGGER = Logger.getLogger(JdbcCollector.class.getName());
 
-    private Set<JdbcConfig> config;
-    private File configFile;
-    private long lastUpdate;
-    String metricPrefix;
+    private final String metricPrefix;
+    private final Path configSource;
 
-    JdbcCollector(File in, String prefix) {
-        configFile = in;
-        metricPrefix = prefix;
+    private volatile Collection<JdbcConfig> configs = List.of();
+    private volatile Instant lastUpdate = Instant.EPOCH;
 
-        configReloadSuccess = Counter.build()
+    private final Counter configReloadSuccess;
+    private final Counter configReloadFailure;
+
+    private final Clock clock = Clock.systemUTC();
+
+    JdbcCollector(String metricPrefix, Path configSource) throws IOException {
+        this.configSource = requireNonNull(configSource);
+        this.metricPrefix = requireNonNull(metricPrefix);
+
+        this.configReloadSuccess = Counter.build()
                 .name(metricPrefix + "_config_reload_success_total")
                 .help("Number of times configuration have successfully been reloaded.")
                 .register();
 
-        configReloadFailure = Counter.build()
+        this.configReloadFailure = Counter.build()
                 .name(metricPrefix + "_config_reload_failure_total")
                 .help("Number of times configuration have failed to be reloaded.")
                 .register();
-        loadConfigFromFile(in);
+
+        final var lastUpdate = Files.getLastModifiedTime(configSource).toInstant();
+        loadConfig();
+        this.lastUpdate = lastUpdate;
     }
 
-    private void loadConfigFromFile(File in) {
-        Set<JdbcConfig> config = new HashSet<>();
-        lastUpdate = in.lastModified();
-        if (in.isDirectory()) {
-            for (File file : in.listFiles()) {
-                try (FileReader fr = new FileReader(file)) {
-                    config.add(new JdbcConfig((Map<String, Object>) new Yaml().load(fr)));
-                } catch (Exception iae) {
-                    LOGGER.log(Level.SEVERE, "Skipping " + file.getName() + " due to error: " + iae.getMessage(), iae);
-                }
-            }
-        } else {
-            try (FileReader fr = new FileReader(in)) {
-                config.add(new JdbcConfig((Map<String, Object>) new Yaml().load(fr)));
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "Skipping " + in.getName() + " due to error: " + e.getMessage(), e);
+    private void loadConfig() throws IOException {
+        final var configs = new ArrayList<JdbcConfig>();
+        for (final var it = Files.walk(configSource).filter(Files::isRegularFile).iterator(); it.hasNext();) {
+            final var file = it.next();
+            try (final var configData = Files.newInputStream(file)) {
+                configs.add(new JdbcConfig(metricPrefix, Config.parseYaml(configData), clock));
             }
         }
 
-        if (config.size() == 0) {
-            throw new IllegalArgumentException("Error reading config files: " + in.getName());
+        if (configs.isEmpty()) {
+            throw new IllegalArgumentException("No configuration in " + configSource);
         }
 
-        this.config = config;
+        this.configs = List.copyOf(configs);
     }
 
     @Override
@@ -94,25 +91,23 @@ public class JdbcCollector extends Collector implements Collector.Describable {
 
     @Override
     public List<MetricFamilySamples> collect() {
-        if (configFile != null) {
-            long mtime = configFile.lastModified();
-            if (mtime > lastUpdate) {
-                LOGGER.fine("Configuration file changed, reloading...");
-                reloadConfig();
-            }
-        }
-
-        return config.stream()
-            .flatMap((JdbcConfig jdbcConfig) -> jdbcConfig.runJobs(metricPrefix).stream())
-            .collect(Collectors.toList());
+        reloadConfigIfOutdated();
+        return configs.parallelStream().flatMap(JdbcConfig::runJobs).collect(toList());
     }
 
-    void reloadConfig() {
+    void reloadConfigIfOutdated() {
         try {
-            loadConfigFromFile(configFile);
+            final var lastUpdate = Files.getLastModifiedTime(configSource).toInstant();
+            if (this.lastUpdate.equals(lastUpdate)) {
+                return;
+            }
+
+            LOGGER.fine("Configuration changed, reloading...");
+            loadConfig();
+            this.lastUpdate = lastUpdate;
             configReloadSuccess.inc();
         } catch (Exception e) {
-            LOGGER.severe("Configuration reload failed: " + e.toString());
+            LOGGER.log(Level.SEVERE, "Configuration reload failed: " + e.getMessage(), e);
             configReloadFailure.inc();
         }
     }
