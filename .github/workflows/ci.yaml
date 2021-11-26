@@ -79,7 +79,7 @@ jobs:
     - name: Build application
       id: build
       env:
-        DOCKER_IMAGE_NAME: ${{ format('{0}/{1}/{2}', github.actor, github.event.repository.name, github.event.repository.name) }}
+        DOCKER_IMAGE_NAME: ${{ format('{0}/{1}', github.repository, github.event.repository.name) }}
         DOCKER_IMAGE_TAG: ${{ steps.generate_version.outputs.version }}
       run: |
         ./mvnw --batch-mode \
