@@ -28,9 +28,9 @@ jobs:
           } else if (ref === "refs/heads/main") {
             output.version = `${new Date().toISOString().replace(/T.+/, "").replace(/-0*/g, ".")}.${process.env.GITHUB_RUN_NUMBER}`;
           } else if (ref.startsWith('refs/heads/')) {
-            output.version = `B-${ref.replace(/^refs\/heads\//, "").replace(/\//, "-")}`;
+            output.version = `B-${ref.replace(/^refs\/heads\//, "").replace(/\//g, "-")}`;
           } else if (ref.startsWith('refs/tags/')) {
-            output.version = `B-${ref.replace(/^refs\/tags\//, "").replace(/\//, "-")}`;
+            output.version = `B-${ref.replace(/^refs\/tags\//, "").replace(/\//g, "-")}`;
           } else {
             core.setFailed(`Unsupported ref: ${ref}`);
             return;
