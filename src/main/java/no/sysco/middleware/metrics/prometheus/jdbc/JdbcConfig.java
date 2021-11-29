@@ -1,385 +1,250 @@
 package no.sysco.middleware.metrics.prometheus.jdbc;
 
-import io.prometheus.client.Collector;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toList;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
+import org.immutables.value.Value;
 
-/**
- *
- */
+import io.prometheus.client.Collector;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.Config;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.ConnectionDef;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.ImmutableConfig;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.ImmutableJob;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.ImmutableQueryDef;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.Job;
+import no.sysco.middleware.metrics.prometheus.jdbc.config.QueryDef;
+
 class JdbcConfig {
-  private static final Logger LOGGER = Logger.getLogger(JdbcConfig.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(JdbcConfig.class.getName());
 
-  private List<JdbcJob> jobs = new ArrayList<>();
-  // <queryName, <expiration unixtimestamp in ms, previous samples>>
-  private Map<String, Map.Entry<Long, List<Collector.MetricFamilySamples>>> sampleCache = new ConcurrentHashMap<>();
-  private Clock clock = Clock.systemUTC();
+    private String prefix;
+    private Config config;
 
-  JdbcConfig(Map<String, Object> yamlConfig) {
-    if (yamlConfig == null) {  // Yaml config empty, set config to empty map.
-      yamlConfig = new HashMap<>();
-      LOGGER.warning("JDBC Config file is empty.");
+    private Map<ImmutableCacheKey, SampleResult> sampleCache = new ConcurrentHashMap<>();
+    private Clock clock = Clock.systemUTC();
+
+    JdbcConfig(String prefix, Config config, Clock clock) {
+        this.prefix = requireNonNull(prefix);
+        this.clock = requireNonNull(clock);
+        this.config = ImmutableConfig.copyOf(config);
     }
 
-    Map<String, String> queries = new TreeMap<>();
-
-    if (yamlConfig.containsKey("queries")) {
-      TreeMap<String, Object> labels =
-          new TreeMap<>((Map<String, Object>) yamlConfig.get("queries"));
-      for (Map.Entry<String, Object> entry : labels.entrySet()) {
-        queries.put(entry.getKey(), (String) entry.getValue());
-      }
+    Stream<Collector.MetricFamilySamples> runJobs() {
+        return config.jobs().parallelStream().flatMap(job -> runJob(prefix, job).samples.stream());
     }
 
-    if (yamlConfig.containsKey("jobs")) {
-      final List<Map<String, Object>> jobList =
-          Optional.ofNullable((List<Map<String, Object>>) yamlConfig.get("jobs"))
-              .orElseThrow(() ->
-                  new IllegalArgumentException("JDBC Config file does not have `jobs` defined. " +
-                      "It will not collect any metric samples."));
+    private SampleResult runJob(String prefix, Job job) {
+        final var startNanos = System.nanoTime();
+        LOGGER.log(Level.INFO, "Running JDBC job: " + job.name());
 
-      for (Map<String, Object> jobObject : jobList) {
-        JdbcJob job = new JdbcJob();
-        jobs.add(job);
+        final var result = new SampleResult(clock);
 
-        if (jobObject.containsKey("name")) {
-          job.name = (String) jobObject.get("name");
-        } else {
-          throw new IllegalArgumentException("JDBC Job does not have a `name` defined. " +
-              "This value is required to execute collector.");
+        try (final var sampleStream = streamJobSamples(job)) {
+            result.samples = sampleStream.flatMap(samples -> samples.samples.stream()).collect(toList());
+        } catch (Exception e) {
+            result.error = Optional.of(e);
+            LOGGER.log(Level.WARNING, "Exception during execution of job " + job.name() + ": ", e);
         }
 
-        if (jobObject.containsKey("connections")) {
-          final List<Map<String, Object>> connections =
-              Optional.ofNullable((List<Map<String, Object>>) jobObject.get("connections"))
-                  .orElseThrow(() ->
-                      new IllegalArgumentException("JDBC Job does not have `connections` defined. " +
-                          "This value is required to execute collector."));
+        result.scrapeDuration = Duration.ofNanos(System.nanoTime() - startNanos);
 
-          for (Map<String, Object> connObject : connections) {
-            JdbcConnection connection = new JdbcConnection();
-            job.connections.add(connection);
+        result.samples.add(
+            new Collector.MetricFamilySamples(
+                prefix + "_scrape_duration_seconds",
+                Collector.Type.GAUGE,
+                "Time this JDBC scrape took, in seconds.",
+                List.of(
+                    new Collector.MetricFamilySamples.Sample(
+                        prefix + "_scrape_duration_seconds",
+                        List.of(),
+                        List.of(),
+                        result.scrapeDuration.toNanos() / (double) TimeUnit.SECONDS.toNanos(1) //
+                    ) //
+                ) //
+            ) //
+        );
 
-            if (connObject.containsKey("url")) {
-              connection.url = (String) connObject.get("url");
-            } else {
-              throw new IllegalArgumentException("JDBC Connection `url` is not defined. " +
-                  "This value is required to execute collector.");
-            }
+        result.samples.add(
+            new Collector.MetricFamilySamples(
+                prefix + "_scrape_error",
+                Collector.Type.GAUGE,
+                "Non-zero if this scrape failed.",
+                List.of(
+                    new Collector.MetricFamilySamples.Sample(
+                        prefix + "_scrape_error",
+                        List.of(),
+                        List.of(),
+                        result.error.isPresent() ? 1 : 0 //
+                    ) //
+                ) //
+            ) //
+        );
 
-            if (connObject.containsKey("username")) {
-              connection.username = (String) connObject.get("username");
-            }
-
-            if (connObject.containsKey("password")) {
-              connection.password = (String) connObject.get("password");
-            }
-
-            if (connObject.containsKey("driver_class_name")) {
-              connection.driverClassName = (String) connObject.get("driver_class_name");
-            }
-          }
-        } else {
-          throw new IllegalArgumentException("JDBC Job does not have a `connections` defined. " +
-              "This value is required to execute collector.");
-        }
-
-        if (jobObject.containsKey("queries")) {
-          final List<Map<String, Object>> queriesList =
-              Optional.ofNullable((List<Map<String, Object>>) jobObject.get("queries"))
-                  .orElseThrow(() ->
-                      new IllegalArgumentException("JDBC Job does not have `queries` defined. " +
-                          "This value is required to execute collector."));
-
-          for (Map<String, Object> queryObject : queriesList) {
-            Query query = new Query();
-            job.queries.add(query);
-
-            if (queryObject.containsKey("name")) {
-              query.name = (String) queryObject.get("name");
-            } else {
-              throw new IllegalArgumentException("JDBC Query does not have a `name` defined. " +
-                  "This value is required to execute collector.");
-            }
-
-            if (queryObject.containsKey("help")) {
-              query.help = (String) queryObject.get("help");
-            }
-
-            if (queryObject.containsKey("static_labels")) {
-              final Map<String, Object> staticLabels = (Map<String, Object>) queryObject.get("static_labels");
-
-              for (Map.Entry<String, Object> staticLabel : staticLabels.entrySet()) {
-                query.staticLabels.put(staticLabel.getKey(), (String) staticLabel.getValue());
-              }
-            }
-
-            if (queryObject.containsKey("labels")) {
-              final List<Object> labels =
-                  Optional.ofNullable((List<Object>) queryObject.get("labels"))
-                      .orElse(new ArrayList<>());
-
-              for (Object label : labels) {
-                query.labels.add((String) label);
-              }
-            }
-
-            if (queryObject.containsKey("values")) {
-              final List<Object> values =
-                  Optional.ofNullable((List<Object>) queryObject.get("values"))
-                      .orElseThrow(() ->
-                          new IllegalArgumentException("JDBC Query does not have `values` defined. " +
-                              "This value is required to execute collector."));
-
-              for (Object value : values) {
-                query.values.add((String) value);
-              }
-            } else {
-              throw new IllegalArgumentException("JDBC Query does not have `values` defined. " +
-                  "This value is required to execute collector.");
-            }
-
-            if (queryObject.containsKey("query") && queryObject.containsKey("query_ref")) {
-              throw new IllegalArgumentException("JDBC Query cannot have a `query` value and a `query_ref` at the same time.");
-            }
-
-            if (queryObject.containsKey("query")) {
-              query.query = (String) queryObject.get("query");
-            } else if (queryObject.containsKey("query_ref")) {
-              query.queryRef = (String) queryObject.get("query_ref");
-              if (queries.containsKey(query.queryRef)) {
-                query.query = queries.get(query.queryRef);
-              } else {
-                throw new IllegalArgumentException("JDBC Query Reference does not exist as part of the JDBC Queries.");
-              }
-            } else {
-              throw new IllegalArgumentException("JDBC Query must have a `query` value OR a `query_ref` defined.");
-            }
-
-            if (queryObject.containsKey("cache_seconds")) {
-              try {
-                query.cacheSeconds = (Integer) queryObject.get("cache_seconds");
-                if (query.cacheSeconds < 0) {
-                  throw new IllegalArgumentException("cache_seconds must be positive");
-                }
-              } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("cache_seconds must be a valid number", e);
-              }
-            }
-          }
-        } else {
-          throw new IllegalArgumentException("JDBC Job does not have `queries` defined. " +
-              "This value is required to execute collector.");
-        }
-      }
-    } else {
-      throw new IllegalArgumentException("JDBC Config file does not have jobs defined. " +
-          "It will not collect any metric samples.");
+        return result;
     }
 
+    private Connection openConnection(ConnectionDef connDef) throws ClassNotFoundException, SQLException {
+        LOGGER.info(String.format("JDBC Connection URL: %s", connDef.url()));
 
-  }
+        if (connDef.driverClassName().isPresent()) {
+            Class.forName(connDef.driverClassName().get());
+        }
 
-  List<Collector.MetricFamilySamples> runJobs(String prefix) {
-    return
-        jobs.parallelStream()
-            .flatMap(job -> runJob(job, prefix).stream())
-            .collect(toList());
-  }
+        if (connDef.username().isPresent()) {
+            return DriverManager.getConnection(//
+                connDef.url(),
+                connDef.username().get(),
+                connDef.password().orElse(null));
+        }
 
-  private List<Collector.MetricFamilySamples> runJob(JdbcJob job, String prefix) {
-    LOGGER.log(Level.INFO, "Running JDBC job: " + job.name);
-
-    double error = 0;
-    List<Collector.MetricFamilySamples> mfsList = new ArrayList<>();
-    List<Connection> connections = new ArrayList<>();
-    long start = System.nanoTime();
-
-    try {
-      List<Collector.MetricFamilySamples> mfsListFromJobs =
-          job.connections
-              .stream()
-              .flatMap(connection -> {
-                try {
-                  LOGGER.info(String.format("JDBC Connection URL: %s", connection.url));
-
-                  if (connection.driverClassName != null) {
-                    Class.forName(connection.driverClassName);
-                  }
-
-                  final Connection conn =
-                      DriverManager.getConnection(
-                          connection.url, connection.username, connection.password);
-
-                  connections.add(conn);
-
-                  return
-                      job.queries
-                          .parallelStream()
-                          .flatMap(query -> {
-                            final String queryName = String.format("%s_%s", prefix, query.name);
-
-                            if(sampleCache.containsKey(queryName)
-                                    && sampleCache.get(queryName).getKey() > clock.millis()) {
-                              return sampleCache.get(queryName).getValue().stream();
-                            }
-
-                            try {
-                              PreparedStatement statement = conn.prepareStatement(query.query);
-                              ResultSet rs = statement.executeQuery();
-                              return getSamples(queryName, query, rs).stream();
-                            } catch (SQLException e) {
-                              LOGGER.log(Level.SEVERE, String.format("Error executing query: %s", query.query), e);
-                              return Stream.empty();
-                            }
-                          });
-                } catch (SQLException | ClassNotFoundException e) {
-                  LOGGER.log(Level.SEVERE, "Error connecting to database", e);
-                  return Stream.empty();
-                }
-              })
-              .collect(toList());
-
-      mfsList.addAll(mfsListFromJobs);
-    } catch (Exception e) {
-      error = 1;
+        return DriverManager.getConnection(connDef.url());
     }
 
-    connections.forEach(connection -> {
-      try {
-        connection.close();
-      } catch (SQLException e) {
-        LOGGER.log(Level.WARNING, "Error closing connection.", e);
-      }
-    });
-
-    List<Collector.MetricFamilySamples.Sample> samples = new ArrayList<>();
-    samples.add(
-        new Collector.MetricFamilySamples.Sample(
-            prefix + "_scrape_duration_seconds",
-            new ArrayList<>(),
-            new ArrayList<>(),
-            (System.nanoTime() - start) / 1.0E9));
-    mfsList.add(
-        new Collector.MetricFamilySamples(
-            prefix + "_scrape_duration_seconds",
-            Collector.Type.GAUGE,
-            "Time this JDBC scrape took, in seconds.",
-            samples));
-
-    samples = new ArrayList<>();
-    samples.add(
-        new Collector.MetricFamilySamples.Sample(
-            prefix + "_scrape_error",
-            new ArrayList<>(),
-            new ArrayList<>(),
-            error));
-    mfsList.add(
-        new Collector.MetricFamilySamples(
-            prefix + "_scrape_error",
-            Collector.Type.GAUGE,
-            "Non-zero if this scrape failed.",
-            samples));
-
-    return mfsList;
-  }
-
-  private List<Collector.MetricFamilySamples> getSamples(String queryName,
-                                                         JdbcConfig.Query query,
-                                                         ResultSet rs)
-      throws SQLException {
-    List<Collector.MetricFamilySamples.Sample> samples = new ArrayList<>();
-
-    while (rs.next()) {
-      final List<String> labelNames = new ArrayList<>(query.labels);
-      final List<String> labelValues = new ArrayList<>();
-
-      for (String label : query.labels) {
+    private static void closeConnection(final Connection conn) {
         try {
-          labelValues.add(rs.getString(label));
-        } catch (SQLException e) {
-          LOGGER.log(
-              Level.WARNING,
-              String.format("Label %s not found as part of the query result set.", label));
-
-          labelValues.add("");
+            conn.close();
+            LOGGER.log(Level.FINE, "Closed connection " + conn);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error closing connection.", e);
         }
-      }
+    }
 
-      for (Map.Entry<String, String> staticLabel : query.staticLabels.entrySet()) {
-        labelNames.add(staticLabel.getKey());
-        labelValues.add(staticLabel.getValue());
-      }
+    private Stream<SampleResult> streamJobSamples(Job job) {
+        return job.connections().parallelStream().flatMap(connDef -> {
+            final Connection conn;
+            try {
+                conn = openConnection(connDef);
+            } catch (SQLException | ClassNotFoundException e) {
+                LOGGER.log(Level.SEVERE, "Error connecting to database", e);
+                return Stream.empty();
+            }
 
-      List<Collector.MetricFamilySamples.Sample> sample =
-          query.values.stream()
-              .map(value -> {
-                try {
-                  return rs.getFloat(value);
-                } catch (SQLException e) {
-                  LOGGER.log(
-                      Level.SEVERE,
-                      String.format("Sample value %s not found as part of the query result set.", value),
-                      e);
-                  return null;
+            return job.queries()
+                .parallelStream()
+                .onClose(() -> closeConnection(conn))
+                .map(queryDef -> evaluateQuery(job, queryDef, conn));
+        });
+    }
+
+    private SampleResult evaluateQuery(Job job, QueryDef queryDef, Connection conn) {
+        final Supplier<SampleResult> queryRunner = () -> runQuery(queryDef, conn);
+
+        return queryDef.cacheDuration()
+            .map(cacheDuration -> sampleCache.compute(CacheKey.of(job, queryDef), (key, value) -> {
+                if (value != null && value.sampleTime.plus(cacheDuration).isAfter(clock.instant())) {
+                    return value;
                 }
-              })
-              .map(value -> new Collector.MetricFamilySamples.Sample(queryName, labelNames, labelValues, value))
-              .collect(toList());
 
-      samples.addAll(sample);
+                return queryRunner.get();
+            }))
+            .orElseGet(queryRunner);
     }
 
-    List<Collector.MetricFamilySamples> samplesList = new ArrayList<>();
-    samplesList.add(
-        new Collector.MetricFamilySamples(queryName, Collector.Type.GAUGE, query.help, samples));
-
-    if(query.cacheSeconds > 0) {
-      sampleCache.put(queryName,
-              new HashMap.SimpleImmutableEntry<>(clock.millis() + query.cacheSeconds * 1000L, samplesList));
+    private SampleResult runQuery(QueryDef queryDef, Connection conn) {
+        final var queryString = queryDef.query().resolve(config.queries()::get);
+        final var result = new SampleResult(clock);
+        final var start = System.nanoTime();
+        try (final var stmt = conn.prepareStatement(queryString); final var rs = stmt.executeQuery()) {
+            result.samples = collectSamples(queryDef, rs);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, String.format("Error executing query: %s", queryString), e);
+            result.error = Optional.of(e);
+        }
+        result.scrapeDuration = Duration.ofNanos(System.nanoTime() - start);
+        return result;
     }
 
-    return samplesList;
-  }
+    private List<Collector.MetricFamilySamples> collectSamples(QueryDef queryDef, ResultSet rs) throws SQLException {
+        final var metricName = String.format("%s_%s", prefix, queryDef.name());
+        List<Collector.MetricFamilySamples.Sample> samples = new ArrayList<>();
 
-  private static class JdbcConnection {
-    String url;
-    String username;
-    String password;
-    String driverClassName;
-  }
+        // The configuration model is wrong as it's not possible to have more than one sample with
+        // the same set of labels, so we're silently ignoring all but the first label value for now.
+        final var valueColumn = queryDef.values().iterator().next();
 
-  private static class JdbcJob {
-    String name;
-    List<JdbcConnection> connections = new ArrayList<>();
-    List<Query> queries = new ArrayList<>();
-  }
+        final var labelNames = new ArrayList<String>();
+        final var staticLabelValues = new ArrayList<String>();
 
-  private static class Query {
-    String name;
-    String help;
-    Map<String, String> staticLabels = new HashMap<>();
-    List<String> labels = new ArrayList<>();
-    List<String> values = new ArrayList<>();
-    int cacheSeconds;
-    String query;
-    String queryRef;
-  }
+        queryDef.staticLabels().forEach((labelName, labelValue) -> {
+            labelNames.add(labelName);
+            staticLabelValues.add(labelValue);
+        });
+
+        final var resultLabelNames = List.copyOf(queryDef.labels());
+
+        while (rs.next()) {
+            final var labelValues = new ArrayList<String>(staticLabelValues.size() + resultLabelNames.size());
+            labelValues.addAll(staticLabelValues);
+            resultLabelNames.forEach(labelName -> {
+                var labelValue = "";
+                try {
+                    labelValue = rs.getString(labelName);
+                } catch (SQLException e) {
+                    LOGGER.log(
+                        Level.WARNING,
+                        String.format("Label %s not found as part of the query result set.", labelName));
+                }
+                labelValues.add(labelValue);
+            });
+
+            try {
+                final var value = rs.getFloat(valueColumn);
+                samples.add(new Collector.MetricFamilySamples.Sample(metricName, labelNames, labelValues, value));
+            } catch (SQLException e) {
+                LOGGER.log(
+                    Level.SEVERE,
+                    String.format("Sample value %s not found as part of the query result set.", valueColumn),
+                    e);
+            }
+        }
+
+        return List.of(
+            new Collector.MetricFamilySamples(
+                metricName,
+                Collector.Type.GAUGE,
+                queryDef.help().orElse("column " + valueColumn),
+                samples));
+    }
+}
+
+class SampleResult {
+    final Instant sampleTime;
+    Duration scrapeDuration = Duration.ZERO;
+    Optional<Throwable> error = Optional.empty();
+    List<Collector.MetricFamilySamples> samples = new ArrayList<>();
+
+    SampleResult(Clock clock) {
+        this.sampleTime = clock.instant();
+    }
+}
+
+@Value.Immutable(builder = false, prehash = true)
+abstract class CacheKey {
+    @Value.Parameter
+    abstract Job job();
+
+    @Value.Parameter
+    abstract QueryDef queryDef();
+
+    static ImmutableCacheKey of(Job job, QueryDef queryDef) {
+        return ImmutableCacheKey.of(ImmutableJob.copyOf(job), ImmutableQueryDef.copyOf(queryDef));
+    }
 }
