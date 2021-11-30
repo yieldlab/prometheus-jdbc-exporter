@@ -31,6 +31,8 @@ public class JdbcCollector extends Collector implements Collector.Describable {
     private volatile Collection<JdbcConfig> configs = List.of();
     private volatile Instant lastUpdate = Instant.EPOCH;
 
+    private final TemplateRenderer renderer = new FreemarkerOsEnvRenderer();
+
     private final Counter configReloadSuccess;
     private final Counter configReloadFailure;
 
@@ -65,6 +67,7 @@ public class JdbcCollector extends Collector implements Collector.Describable {
                         metricPrefix,
                         Config.parseYaml(configData),
                         ConnectionProvider.DRIVER_MANAGER,
+                        renderer,
                         clock));
             }
         }

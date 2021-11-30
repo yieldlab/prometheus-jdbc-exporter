@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 /** Connection details to connect to a database instance and execute queries. */
 @ConfigObject
 @Value.Immutable
+@Value.Style(redactedMask = "***")
 @JsonDeserialize(builder = ImmutableConnectionDef.Builder.class)
 public interface ConnectionDef {
 
@@ -20,6 +21,7 @@ public interface ConnectionDef {
     Optional<String> username();
 
     /** Database user's password. */
+    @Value.Redacted
     Optional<String> password();
 
     /** Fully qualified name of the JDBC driver class. */
