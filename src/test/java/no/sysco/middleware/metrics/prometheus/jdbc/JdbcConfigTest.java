@@ -64,7 +64,7 @@ class JdbcConfigTest {
         given(rs.getDouble("value")).willReturn(42d).willThrow(AssertionFailedError.class);
 
         // when
-        final var underTest = new JdbcConfig("test", config, connProvider, clock);
+        final var underTest = new JdbcConfig("test", config, connProvider, tpl -> tpl, clock);
 
         // then
         final var allSamples = underTest.runJobs().collect(toList());

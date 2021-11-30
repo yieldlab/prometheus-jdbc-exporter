@@ -38,14 +38,16 @@ class JdbcConfig {
     private final String prefix;
     private final Config config;
     private final ConnectionProvider connProvider;
+    private final TemplateRenderer renderer;
     private final Clock clock;
 
     private Map<ImmutableCacheKey, SampleResult> sampleCache = new ConcurrentHashMap<>();
 
-    JdbcConfig(String prefix, Config config, ConnectionProvider connProvider, Clock clock) {
+    JdbcConfig(String prefix, Config config, ConnectionProvider connProvider, TemplateRenderer renderer, Clock clock) {
         this.prefix = requireNonNull(prefix);
         this.config = ImmutableConfig.copyOf(config);
         this.connProvider = requireNonNull(connProvider);
+        this.renderer = requireNonNull(renderer);
         this.clock = requireNonNull(clock);
     }
 
@@ -104,10 +106,11 @@ class JdbcConfig {
     }
 
     private Connection openConnection(ConnectionDef connDef) throws ClassNotFoundException, SQLException {
-        LOGGER.info(String.format("JDBC Connection URL: %s", connDef.url()));
+        final var url = renderer.render(connDef.url());
+        LOGGER.info(String.format("JDBC Connection URL: %s", url));
 
         if (connDef.driverClassName().isPresent()) {
-            Class.forName(connDef.driverClassName().get());
+            Class.forName(renderer.render(connDef.driverClassName().get()));
         }
 
         final var props = new HashMap<String, String>();
@@ -131,8 +134,8 @@ class JdbcConfig {
             final Connection conn;
             try {
                 conn = openConnection(connDef);
-            } catch (SQLException | ClassNotFoundException e) {
-                LOGGER.log(Level.SEVERE, "Error connecting to database", e);
+            } catch (SQLException | ClassNotFoundException | RuntimeException e) {
+                LOGGER.log(Level.SEVERE, "Error connecting to database for job " + job.name(), e);
                 return Stream.empty();
             }
 
@@ -158,7 +161,7 @@ class JdbcConfig {
     }
 
     private SampleResult runQuery(QueryDef queryDef, Connection conn) {
-        final var queryString = queryDef.query().resolve(config.queries()::get);
+        final var queryString = renderer.render(queryDef.query().resolve(config.queries()::get));
         final var result = new SampleResult(clock);
         final var start = System.nanoTime();
         try (final var stmt = conn.prepareStatement(queryString); final var rs = stmt.executeQuery()) {
