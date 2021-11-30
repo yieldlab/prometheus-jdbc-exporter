@@ -60,7 +60,12 @@ public class JdbcCollector extends Collector implements Collector.Describable {
         for (final var it = Files.walk(configSource).filter(Files::isRegularFile).iterator(); it.hasNext();) {
             final var file = it.next();
             try (final var configData = Files.newInputStream(file)) {
-                configs.add(new JdbcConfig(metricPrefix, Config.parseYaml(configData), clock));
+                configs.add(
+                    new JdbcConfig(
+                        metricPrefix,
+                        Config.parseYaml(configData),
+                        ConnectionProvider.DRIVER_MANAGER,
+                        clock));
             }
         }
 
