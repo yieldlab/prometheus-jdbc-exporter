@@ -3,7 +3,7 @@ jobs:
   connections:
   - url: jdbc:mysql://mysql/mysql
     username: root
-    password: example
+    password: ${env.MYSQL_PASSWORD}
   queries:
   - name: db_users
     help: Database Users
@@ -16,7 +16,7 @@ jobs:
   connections:
   - url: jdbc:postgresql://postgresql/postgres
     username: postgres
-    password: example
+    password: ${env.PGPASSWORD}
   queries:
   - name: db_users
     help: Database Users

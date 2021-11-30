@@ -8,6 +8,7 @@ It uses JDBC libraries to execute a SQL query that returns a `Float` result and 
 - [Getting Started](#getting-started)
 - [Startup](#startup)
 - [Configuration](#configuration)
+  - [Templating](#templating)
 - [Override metric prefix](#override-metric-prefix)
 - [JDBC drivers](#jdbc-drivers)
   - [`download-list` file format](#download-list-file-format)
@@ -89,13 +90,13 @@ execute queries.
 
 Values:
 
-*url*: JDBC URL to connect to database instances. Required.
+*url*: JDBC URL to connect to database instances. Templated. Required.
 
-*username*: database user's name. Optional.
+*username*: database user's name. Templated. Optional.
 
-*password*: database user's password. Optional.
+*password*: database user's password. Templated. Optional.
 
-*driver_class_name*: Fully qualified name of the JDBC driver class. Optional.
+*driver_class_name*: Fully qualified name of the JDBC driver class. Templated. Optional.
 
 ```yaml
 connections:
@@ -120,7 +121,7 @@ Values:
 
 *values*: List of values, that has to match a column value, that must be numbers. At least one.
 
-*query*: SQL query to select rows that will represent a metric sample.
+*query*: SQL query to select rows that will represent a metric sample. Templated.
 
 *query_ref*: Reference to common queries shared between jobs.
 
@@ -159,7 +160,22 @@ queries:
     SELECT count(1) "COUNT" FROM users
 ```
 
-Where `query1` is the key that will be used from `query` definition.
+Where `query1` is the key that will be used from `query` definition. The query
+values are templated as if they were used literally in the query definitions
+that are using them.
+
+### Templating
+
+Some strings from the configuration are treated as templates. The Prometheus
+JDBC exporter uses the [FreeMarker Template Language][ftl].
+
+Currently, the following interpolations are available:
+
+| Name | Description | Example |
+|-|-|-|
+| `env`| OS environment variables | `${env.HOME}` |
+
+[ftl]: https://freemarker.apache.org/docs/dgui_template_overallstructure.html
 
 ## Override metric prefix
 

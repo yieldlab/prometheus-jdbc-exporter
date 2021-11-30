@@ -17,6 +17,8 @@ services:
     build: .
     environment:
       METRIC_PREFIX: prepackaged_jdbc
+      MYSQL_PASSWORD: example
+      PGPASSWORD: example
 
   # This shows how to download drivers at container startup time, and how to
   # inject the configuration via a volume mount.
@@ -43,6 +45,9 @@ services:
     command:
     - 0.0.0.0:5555
     - /app/config.yml
+    environment:
+      MYSQL_PASSWORD: example
+      PGPASSWORD: example
     volumes:
     - type: bind
       source: ./config.yml
