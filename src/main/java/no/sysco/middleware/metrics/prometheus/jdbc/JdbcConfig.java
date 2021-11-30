@@ -4,13 +4,13 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,16 +35,18 @@ import no.sysco.middleware.metrics.prometheus.jdbc.config.QueryDef;
 class JdbcConfig {
     private static final Logger LOGGER = Logger.getLogger(JdbcConfig.class.getName());
 
-    private String prefix;
-    private Config config;
+    private final String prefix;
+    private final Config config;
+    private final ConnectionProvider connProvider;
+    private final Clock clock;
 
     private Map<ImmutableCacheKey, SampleResult> sampleCache = new ConcurrentHashMap<>();
-    private Clock clock = Clock.systemUTC();
 
-    JdbcConfig(String prefix, Config config, Clock clock) {
+    JdbcConfig(String prefix, Config config, ConnectionProvider connProvider, Clock clock) {
         this.prefix = requireNonNull(prefix);
-        this.clock = requireNonNull(clock);
         this.config = ImmutableConfig.copyOf(config);
+        this.connProvider = requireNonNull(connProvider);
+        this.clock = requireNonNull(clock);
     }
 
     Stream<Collector.MetricFamilySamples> runJobs() {
@@ -108,14 +110,11 @@ class JdbcConfig {
             Class.forName(connDef.driverClassName().get());
         }
 
-        if (connDef.username().isPresent()) {
-            return DriverManager.getConnection(//
-                connDef.url(),
-                connDef.username().get(),
-                connDef.password().orElse(null));
-        }
+        final var props = new HashMap<String, String>();
+        connDef.username().ifPresent(u -> props.put("user", u));
+        connDef.password().ifPresent(p -> props.put("password", p));
 
-        return DriverManager.getConnection(connDef.url());
+        return connProvider.getConnection(connDef.url(), props);
     }
 
     private static void closeConnection(final Connection conn) {
@@ -202,11 +201,12 @@ class JdbcConfig {
                         Level.WARNING,
                         String.format("Label %s not found as part of the query result set.", labelName));
                 }
+                labelNames.add(labelName);
                 labelValues.add(labelValue);
             });
 
             try {
-                final var value = rs.getFloat(valueColumn);
+                final var value = rs.getDouble(valueColumn);
                 samples.add(new Collector.MetricFamilySamples.Sample(metricName, labelNames, labelValues, value));
             } catch (SQLException e) {
                 LOGGER.log(

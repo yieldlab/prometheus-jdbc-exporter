@@ -29,6 +29,8 @@
 
         <jetty.version>8.1.7.v20120910</jetty.version>
 
+        <mockito.version>4.1.0</mockito.version>
+
         <docker.image.registry>ghcr.io</docker.image.registry>
         <docker.image.name>yieldlab/${project.artifactId}</docker.image.name>
         <docker.image.tag>${project.version}</docker.image.tag>
@@ -91,6 +93,19 @@
             <version>2.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <dependencyManagement>
@@ -106,7 +121,7 @@
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
-                <version>5.3.1</version>
+                <version>5.8.2</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
