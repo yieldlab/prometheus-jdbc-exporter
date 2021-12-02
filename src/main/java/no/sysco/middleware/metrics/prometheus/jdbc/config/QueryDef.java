@@ -10,11 +10,11 @@ import org.immutables.value.Value;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.util.StdConverter;
 
 /** Query definition to collect metrics from a database. */
-@ConfigObject
+@ImmutableConfigObject
+@JacksonConfigObject
 @Value.Immutable
 @JsonDeserialize(builder = ImmutableQueryDef.Builder.class)
 public interface QueryDef {
@@ -51,7 +51,7 @@ public interface QueryDef {
     }
 }
 
-@ConfigObject
+@JacksonConfigObject
 final class JacksonQueryDefCacheSecondsConverter extends StdConverter<Long, Optional<Duration>> {
     @Override
     public Optional<Duration> convert(Long value) {

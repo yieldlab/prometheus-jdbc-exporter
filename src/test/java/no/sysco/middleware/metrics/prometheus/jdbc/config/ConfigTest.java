@@ -240,6 +240,10 @@ class ConfigTest {
             "    password: sys\n" + //
             "  queries:\n" + //
             "  - name: jdbc\n" + //
+            "    static_labels:\n" + //
+            "      stat: ic\n" + //
+            "    labels:\n" + //
+            "    - from_query\n" + //
             "    values:\n" + //
             "    - v1\n" + //
             "    query: abc\n" + //
@@ -254,6 +258,8 @@ class ConfigTest {
                     .addQueries(
                         ImmutableQueryDef.builder()
                             .name("jdbc")
+                            .putStaticLabels("stat", "ic")
+                            .addLabels("from_query")
                             .addValues("v1")
                             .query(QueryString.query("abc"))
                             .build())

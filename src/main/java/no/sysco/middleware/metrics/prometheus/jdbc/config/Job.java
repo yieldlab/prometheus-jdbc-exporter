@@ -7,7 +7,8 @@ import org.immutables.value.Value;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /** A job that will be executed by the collector. */
-@ConfigObject
+@ImmutableConfigObject
+@JacksonConfigObject
 @Value.Immutable
 @JsonDeserialize(builder = ImmutableJob.Builder.class)
 public interface Job {
