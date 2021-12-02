@@ -2,7 +2,6 @@ package no.sysco.middleware.metrics.prometheus.jdbc.config;
 
 import static java.util.Objects.requireNonNull;
 
-import java.util.Objects;
 import java.util.function.Function;
 
 import org.immutables.value.Value;
@@ -10,7 +9,8 @@ import org.immutables.value.Value;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
-@ConfigObject
+@ImmutableConfigObject
+@JacksonConfigObject
 @Value.Enclosing
 @JsonDeserialize(builder = JacksonQueryStringBuilder.class)
 public abstract class QueryString {
@@ -26,7 +26,7 @@ public abstract class QueryString {
         return ImmutableQueryString.Ref.of(queryRef);
     }
 
-    @ConfigObject
+    @JacksonConfigObject
     @Value.Immutable(builder = false)
     @JsonDeserialize(as = ImmutableQueryString.Plain.class)
     public static abstract class Plain extends QueryString {
@@ -40,7 +40,7 @@ public abstract class QueryString {
         }
     }
 
-    @ConfigObject
+    @JacksonConfigObject
     @Value.Immutable(builder = false)
     @JsonDeserialize(as = ImmutableQueryString.Ref.class)
     public static abstract class Ref extends QueryString {
@@ -56,7 +56,7 @@ public abstract class QueryString {
     public abstract String resolve(Function<String, String> refResolver);
 }
 
-@ConfigObject
+@JacksonConfigObject
 final class JacksonQueryStringBuilder {
     private static final String UNSET = "sentinel";
 

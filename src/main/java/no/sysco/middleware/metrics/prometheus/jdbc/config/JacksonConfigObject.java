@@ -14,12 +14,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
-/** Meta annotation for Config interfaces. */
+/** Jackson meta annotation for Config interfaces. */
 @Target(TYPE)
 @Retention(RUNTIME)
 @JacksonAnnotationsInside
 @JsonAutoDetect(fieldVisibility = NONE, getterVisibility = PUBLIC_ONLY, isGetterVisibility = PUBLIC_ONLY, setterVisibility = PUBLIC_ONLY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(SnakeCaseStrategy.class)
-public @interface ConfigObject {
+@interface JacksonConfigObject {
 }

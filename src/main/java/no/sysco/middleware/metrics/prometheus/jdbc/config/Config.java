@@ -19,7 +19,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 
 /** Configuration for the Prometheus JDBC Exporter. */
-@ConfigObject
+@ImmutableConfigObject
+@JacksonConfigObject
 @Value.Immutable
 @JsonDeserialize(builder = ImmutableConfig.Builder.class)
 public interface Config {

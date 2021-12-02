@@ -4,13 +4,12 @@ import java.util.Optional;
 
 import org.immutables.value.Value;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /** Connection details to connect to a database instance and execute queries. */
-@ConfigObject
+@ImmutableConfigObject
+@JacksonConfigObject
 @Value.Immutable
-@Value.Style(redactedMask = "***")
 @JsonDeserialize(builder = ImmutableConnectionDef.Builder.class)
 public interface ConnectionDef {
 
