@@ -184,13 +184,16 @@ class JdbcConfig {
 
         final var labelNames = new ArrayList<String>();
         final var staticLabelValues = new ArrayList<String>();
+        final var resultLabelNames = new ArrayList<String>();
 
         queryDef.staticLabels().forEach((labelName, labelValue) -> {
             labelNames.add(labelName);
             staticLabelValues.add(labelValue);
         });
-
-        final var resultLabelNames = List.copyOf(queryDef.labels());
+        queryDef.labels().forEach(label -> {
+            resultLabelNames.add(label);
+            labelNames.add(label);
+        });
 
         while (rs.next()) {
             final var labelValues = new ArrayList<String>(staticLabelValues.size() + resultLabelNames.size());
@@ -204,7 +207,6 @@ class JdbcConfig {
                         Level.WARNING,
                         String.format("Label %s not found as part of the query result set.", labelName));
                 }
-                labelNames.add(labelName);
                 labelValues.add(labelValue);
             });
 
