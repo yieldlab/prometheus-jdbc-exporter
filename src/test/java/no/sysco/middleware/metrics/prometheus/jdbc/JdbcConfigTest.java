@@ -8,9 +8,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 
 import java.sql.ResultSet;
 import java.time.Clock;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.hamcrest.Description;
@@ -24,7 +26,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.opentest4j.AssertionFailedError;
 
 import io.prometheus.client.Collector;
-import io.prometheus.client.Collector.MetricFamilySamples;
 import no.sysco.middleware.metrics.prometheus.jdbc.config.ImmutableConfig;
 import no.sysco.middleware.metrics.prometheus.jdbc.config.ImmutableConnectionDef;
 import no.sysco.middleware.metrics.prometheus.jdbc.config.ImmutableJob;
@@ -59,9 +60,9 @@ class JdbcConfigTest {
         final var conn = connProvider.getConnection("test", Map.of());
         final var stmt = conn.prepareStatement("1337");
         given(stmt.executeQuery()).willReturn(rs);
-        given(rs.next()).willReturn(true).willReturn(false);
-        given(rs.getString("fromResultSet")).willReturn("foo").willThrow(AssertionFailedError.class);
-        given(rs.getDouble("value")).willReturn(42d).willThrow(AssertionFailedError.class);
+        given(rs.next()).willReturn(true).willReturn(true).willReturn(false);
+        given(rs.getString("fromResultSet")).willReturn("foo").willReturn("bar").willThrow(AssertionFailedError.class);
+        given(rs.getDouble("value")).willReturn(42d).willReturn(43d).willThrow(AssertionFailedError.class);
 
         // when
         final var underTest = new JdbcConfig("test", config, connProvider, tpl -> tpl, clock);
@@ -79,15 +80,18 @@ class JdbcConfigTest {
         assertThat(querySamples.name, is("test_q1"));
         assertThat(querySamples.help, is("column value"));
         assertThat(querySamples.type, is(Collector.Type.GAUGE));
-        assertThat(querySamples.samples, hasSize(1));
-
-        final var querySample = querySamples.samples.iterator().next();
-        assertThat(querySample.name, is("test_q1"));
-        assertThat(querySample.labelNames, containsInAnyOrder("stat", "fromResultSet"));
-        assertThat(querySample.labelValues, hasSize(querySample.labelNames.size()));
-        assertThat(querySample.labelValues.get(querySample.labelNames.indexOf("stat")), is("ic"));
-        assertThat(querySample.labelValues.get(querySample.labelNames.indexOf("fromResultSet")), is("foo"));
-        assertThat(querySample.value, is(42d));
+        assertThat(querySamples.samples, hasSize(2));
+        assertThat(
+            querySamples.samples,
+            containsInAnyOrder(
+                sampleWith(
+                    equalTo(querySamples.name),
+                    equalTo(42d),
+                    equalTo(Map.of("stat", "ic", "fromResultSet", "foo"))),
+                sampleWith(
+                    equalTo(querySamples.name),
+                    equalTo(43d),
+                    equalTo(Map.of("stat", "ic", "fromResultSet", "bar")))));
 
         final var errorSamples = allSamples.stream().filter(s -> "test_scrape_error".equals(s.name)).findFirst().get();
         assertThat(errorSamples.type, is(Collector.Type.GAUGE));
@@ -98,15 +102,14 @@ class JdbcConfigTest {
 
         final var inOrder = Mockito.inOrder(conn, stmt, rs);
         inOrder.verify(stmt).executeQuery();
-        inOrder.verify(rs).next();
-        inOrder.verify(rs).next();
+        inOrder.verify(rs, times(3)).next();
         inOrder.verify(rs).close();
         inOrder.verify(stmt).close();
         inOrder.verify(conn).close();
         inOrder.verifyNoMoreInteractions();
     }
 
-    private static final Matcher<MetricFamilySamples> samplesNamed(Matcher<? super String> name) {
+    private static final Matcher<Collector.MetricFamilySamples> samplesNamed(Matcher<? super String> name) {
         return new TypeSafeDiagnosingMatcher<Collector.MetricFamilySamples>() {
             @Override
             public void describeTo(Description description) {
@@ -114,10 +117,87 @@ class JdbcConfigTest {
             }
 
             @Override
-            protected boolean matchesSafely(MetricFamilySamples item, Description mismatchDescription) {
+            protected boolean matchesSafely(Collector.MetricFamilySamples item, Description mismatchDescription) {
                 if (!name.matches(item.name)) {
-                    mismatchDescription.appendText("name was ");
+                    mismatchDescription.appendText("name ");
                     name.describeMismatch(item.name, mismatchDescription);
+                    return false;
+                }
+
+                return true;
+            }
+        };
+    }
+
+    private static final Matcher<Collector.MetricFamilySamples.Sample> sampleWith(
+        final Matcher<? super String> name,
+        final Matcher<? super Double> value,
+        final Matcher<? super Map<String, String>> labels)
+    {
+        return new TypeSafeDiagnosingMatcher<Collector.MetricFamilySamples.Sample>() {
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("a sample with name ")
+                    .appendDescriptionOf(name)
+                    .appendText(", value ")
+                    .appendDescriptionOf(value)
+                    .appendText(" and labels ")
+                    .appendDescriptionOf(labels);
+            }
+
+            @Override
+            protected boolean matchesSafely(
+                Collector.MetricFamilySamples.Sample item,
+                Description mismatchDescription)
+            {
+                if (!name.matches(item.name)) {
+                    mismatchDescription.appendText("name ");
+                    name.describeMismatch(item.name, mismatchDescription);
+                    return false;
+                }
+                if (!value.matches(item.value)) {
+                    mismatchDescription.appendText("value ");
+                    value.describeMismatch(item.value, mismatchDescription);
+                    return false;
+                }
+
+                if (item.labelNames == null) {
+                    mismatchDescription.appendText("labelNames was ").appendValue(item.labelNames);
+                    return false;
+                }
+                if (item.labelValues == null) {
+                    mismatchDescription.appendText("labelValues was ").appendValue(item.labelValues);
+                    return false;
+                }
+
+                final var itemLabels = new HashMap<String, String>();
+                final var names = item.labelNames.iterator();
+                final var values = item.labelValues.iterator();
+                while (names.hasNext() && values.hasNext()) {
+                    final var label = Map.entry(names.next(), values.next());
+                    final var prevValue = itemLabels.put(label.getKey(), label.getValue());
+                    if (prevValue != null) {
+                        mismatchDescription.appendText("duplicate label named ")
+                            .appendValue(label.getKey())
+                            .appendText(": ")
+                            .appendValue(prevValue)
+                            .appendText(" vs. ")
+                            .appendValue(label.getValue());
+                        return false;
+                    }
+                }
+
+                if (names.hasNext()) {
+                    mismatchDescription.appendText("there were more label names than label values");
+                    return false;
+                } else if (values.hasNext()) {
+                    mismatchDescription.appendText("there were more label values than label names");
+                    return false;
+                }
+
+                if (!labels.matches(itemLabels)) {
+                    mismatchDescription.appendText("labels ");
+                    labels.describeMismatch(labels, mismatchDescription);
                     return false;
                 }
 
