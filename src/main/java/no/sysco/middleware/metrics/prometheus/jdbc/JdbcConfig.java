@@ -117,7 +117,7 @@ class JdbcConfig {
         connDef.username().ifPresent(u -> props.put("user", u));
         connDef.password().ifPresent(p -> props.put("password", p));
 
-        return connProvider.getConnection(connDef.url(), props);
+        return connProvider.getConnection(url, props);
     }
 
     private static void closeConnection(final Connection conn) {
