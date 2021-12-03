@@ -36,15 +36,18 @@ import no.sysco.middleware.metrics.prometheus.jdbc.config.QueryString;
 class JdbcConfigTest {
 
     @Test
-    void exportsMetricsCorrectly(@Mock(answer = RETURNS_DEEP_STUBS) ConnectionProvider connProvider, @Mock Clock clock)
-        throws Exception
+    void exportsMetricsCorrectly(
+        @Mock(answer = RETURNS_DEEP_STUBS) ConnectionProvider connProvider,
+        @Mock TemplateRenderer renderer,
+        @Mock Clock clock) throws Exception
     {
         // given
         final var config = ImmutableConfig.builder()
             .addJobs(
                 ImmutableJob.builder()
                     .name("exportsMetricsCorrectly")
-                    .addConnections(ImmutableConnectionDef.builder().url("test").build())
+                    .addConnections(
+                        ImmutableConnectionDef.builder().url("test").username("user").password("pass").build())
                     .addQueries(
                         ImmutableQueryDef.builder()
                             .name("q1")
@@ -56,16 +59,20 @@ class JdbcConfigTest {
                     .build())
             .build();
 
+        given(renderer.render("test")).willReturn("db");
+        given(renderer.render("user")).willReturn("nobody");
+        given(renderer.render("pass")).willReturn("nothing");
+        given(renderer.render("1337")).willReturn("leet");
         final var rs = Mockito.mock(ResultSet.class);
-        final var conn = connProvider.getConnection("test", Map.of());
-        final var stmt = conn.prepareStatement("1337");
+        final var conn = connProvider.getConnection("db", Map.of("user", "nobody", "password", "nothing"));
+        final var stmt = conn.prepareStatement("leet");
         given(stmt.executeQuery()).willReturn(rs);
         given(rs.next()).willReturn(true).willReturn(true).willReturn(false);
         given(rs.getString("fromResultSet")).willReturn("foo").willReturn("bar").willThrow(AssertionFailedError.class);
         given(rs.getDouble("value")).willReturn(42d).willReturn(43d).willThrow(AssertionFailedError.class);
 
         // when
-        final var underTest = new JdbcConfig("test", config, connProvider, tpl -> tpl, clock);
+        final var underTest = new JdbcConfig("test", config, connProvider, renderer, clock);
 
         // then
         final var allSamples = underTest.runJobs().collect(toList());

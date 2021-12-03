@@ -114,8 +114,8 @@ class JdbcConfig {
         }
 
         final var props = new HashMap<String, String>();
-        connDef.username().ifPresent(u -> props.put("user", u));
-        connDef.password().ifPresent(p -> props.put("password", p));
+        connDef.username().map(renderer::render).ifPresent(u -> props.put("user", u));
+        connDef.password().map(renderer::render).ifPresent(p -> props.put("password", p));
 
         return connProvider.getConnection(url, props);
     }
