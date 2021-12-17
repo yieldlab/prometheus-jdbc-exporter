@@ -29,7 +29,7 @@
 
         <jetty.version>9.4.41.v20210516</jetty.version>
 
-        <mockito.version>4.1.0</mockito.version>
+        <mockito.version>4.2.0</mockito.version>
 
         <docker.image.registry>ghcr.io</docker.image.registry>
         <docker.image.name>yieldlab/${project.artifactId}</docker.image.name>
