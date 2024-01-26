@@ -3,7 +3,7 @@
 
     <groupId>com.yieldlab</groupId>
     <artifactId>prometheus-jdbc-exporter</artifactId>
-    <version>main-SNAPSHOT</version>
+    <version>2024.1.26.33</version>
     <packaging>jar</packaging>
 
     <name>prometheus-jdbc-exporter</name>
@@ -31,8 +31,8 @@
 
         <mockito.version>4.1.0</mockito.version>
 
-        <docker.image.registry>ghcr.io</docker.image.registry>
-        <docker.image.name>yieldlab/${project.artifactId}</docker.image.name>
+        <docker.image.registry>docker.svc.y6b.de</docker.image.registry>
+        <docker.image.name>${project.artifactId}</docker.image.name>
         <docker.image.tag>${project.version}</docker.image.tag>
     </properties>
 
@@ -163,7 +163,7 @@
                 <version>3.1.4</version>
                 <configuration>
                     <from>
-                        <image>docker.io/library/eclipse-temurin:11.0.13_8-jre-alpine@sha256:68a61bdf11c53dd0d2396bfe631877a300db41329847b487aa06ea5a4f51cecf</image>
+                        <image>docker.io/library/eclipse-temurin:11.0.22_7-jre-alpine@sha256:41b7dd3c39a2cdd353190eb48b59780b76de60fb7d1dc26ebca5f43eb520ca5f</image>
                     </from>
                     <to>
                         <image>${docker.image.registry}/${docker.image.name}:${docker.image.tag}</image>
