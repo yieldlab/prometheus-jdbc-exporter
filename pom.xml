@@ -3,7 +3,7 @@
 
     <groupId>com.yieldlab</groupId>
     <artifactId>prometheus-jdbc-exporter</artifactId>
-    <version>2024.1.26.33</version>
+    <version>dev-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>prometheus-jdbc-exporter</name>
@@ -31,8 +31,8 @@
 
         <mockito.version>4.1.0</mockito.version>
 
-        <docker.image.registry>docker.svc.y6b.de</docker.image.registry>
-        <docker.image.name>${project.artifactId}</docker.image.name>
+        <docker.image.registry>ghcr.io</docker.image.registry>
+        <docker.image.name>yieldlab/${project.artifactId}</docker.image.name>
         <docker.image.tag>${project.version}</docker.image.tag>
     </properties>
 
